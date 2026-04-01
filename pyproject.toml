@@ -1,0 +1,35 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.backends.legacy:build"
+
+[project]
+name = "idp-platform"
+version = "1.0.0"
+description = "Internal Developer Platform — self-service de infraestructura"
+requires-python = ">=3.11"
+readme = "README.md"
+license = { text = "MIT" }
+authors = [{ name = "Asier Caballero", email = "asier.caballero1@gmail.com" }]
+
+[project.scripts]
+idp = "idp.cli.main:main"
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "UP", "B", "SIM"]
+ignore = ["E501", "B008"]
+
+[tool.coverage.run]
+source = ["idp"]
+omit = ["*/tests/*", "*/adapters/github/github_adapter.py"]
+
+[tool.coverage.report]
+fail_under = 80
+show_missing = true
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]

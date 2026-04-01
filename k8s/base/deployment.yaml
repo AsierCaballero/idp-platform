@@ -1,0 +1,124 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: idp-api
+  namespace: idp-system
+  labels:
+    app.kubernetes.io/name: idp-api
+    app.kubernetes.io/component: api
+    app.kubernetes.io/managed-by: idp-platform
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: idp-api
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: idp-api
+    spec:
+      serviceAccountName: idp-api
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        fsGroup: 1000
+      containers:
+        - name: api
+          image: ghcr.io/myorg/idp-platform:latest
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 8000
+              name: http
+          env:
+            - name: ENVIRONMENT
+              value: production
+            - name: LOG_FORMAT
+              value: json
+            - name: K8S_IN_CLUSTER
+              value: "true"
+            - name: GITHUB_ORG
+              valueFrom:
+                configMapKeyRef:
+                  name: idp-config
+                  key: github_org
+            - name: GITHUB_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: idp-secrets
+                  key: github_token
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8000
+            initialDelaySeconds: 10
+            periodSeconds: 30
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8000
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          securityContext:
+            readOnlyRootFilesystem: true
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: [ALL]
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: idp-api
+  namespace: idp-system
+spec:
+  selector:
+    app.kubernetes.io/name: idp-api
+  ports:
+    - port: 80
+      targetPort: 8000
+      name: http
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: idp-api
+  namespace: idp-system
+  annotations:
+    azure.workload.identity/client-id: "${MANAGED_IDENTITY_CLIENT_ID}"
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: idp-api
+rules:
+  - apiGroups: [""]
+    resources: [namespaces, resourcequotas, limitranges, serviceaccounts]
+    verbs: [get, list, watch, create, update, patch, delete]
+  - apiGroups: [rbac.authorization.k8s.io]
+    resources: [roles, rolebindings]
+    verbs: [get, list, watch, create, update, patch, delete]
+  - apiGroups: [networking.k8s.io]
+    resources: [networkpolicies]
+    verbs: [get, list, watch, create, update, patch, delete]
+  - apiGroups: [idp.company.io]
+    resources: [projects]
+    verbs: [get, list, watch, create, update, patch, delete]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: idp-api
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: idp-api
+subjects:
+  - kind: ServiceAccount
+    name: idp-api
+    namespace: idp-system
