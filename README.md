@@ -1,108 +1,94 @@
-# 🏗️ IDP Platform
+# IDP Platform
 
-> **Internal Developer Platform** — self-service de infraestructura para equipos de desarrollo.
-> Un equipo pide un proyecto → la plataforma crea el repo GitHub, configura CI/CD, aprovisiona namespaces K8s con RBAC y NetworkPolicy, y registra en ArgoCD. Todo en segundos.
+Internal Developer Platform — self-service infrastructure for development teams. A team requests a project, and the platform creates the GitHub repo, configures CI/CD, provisions Kubernetes namespaces with RBAC and NetworkPolicy, and registers everything in ArgoCD. In seconds.
 
-[![CI](https://github.com/asier-caballero/idp-platform/actions/workflows/ci.yml/badge.svg)](https://github.com/asier-caballero/idp-platform/actions)
-[![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://python.org)
-[![Tests](https://img.shields.io/badge/tests-30%20passing-brightgreen.svg)](tests/)
-[![Architecture](https://img.shields.io/badge/architecture-hexagonal-purple.svg)](#arquitectura)
+[![CI](https://img.shields.io/github/actions/workflow/status/AsierCaballero/idp-platform/ci.yml?label=CI&logo=github)](https://github.com/AsierCaballero/idp-platform/actions)
+[![Python 3.11+](https://img.shields.io/badge/python-3.11%2B-blue?logo=python)](https://python.org)
+[![Tests](https://img.shields.io/badge/tests-30%20passing-brightgreen)](tests/)
+[![Architecture](https://img.shields.io/badge/architecture-hexagonal-purple)](#architecture)
 
 ---
 
-## ¿Qué hace?
+## Quick Demo
 
 ```bash
-# Un comando → GitHub repo + K8s namespace + RBAC + NetworkPolicy + ArgoCD
 idp project create "Payment Service" --team backend --envs dev,staging,prod
 ```
 
-En cuestión de segundos el equipo tiene:
-- 📦 **GitHub repo** privado con branch protection y Actions workflows
-- ☸️ **K8s namespace** con ResourceQuota, LimitRange, RBAC y NetworkPolicy deny-all
-- 🔄 **ArgoCD Application** para GitOps continuo
-- 🔑 **Secrets store** conectado (Azure Key Vault / HashiCorp Vault)
-- 📋 **Audit log** completo de todas las operaciones
+This single command gives the team:
+- Private GitHub repo with branch protection and Actions workflows
+- Kubernetes namespace with ResourceQuota, LimitRange, RBAC, and default deny-all NetworkPolicy
+- ArgoCD Application for GitOps
+- Secrets store integration (Azure Key Vault / HashiCorp Vault)
+- Complete audit log of every operation
 
 ---
 
-## Arquitectura
+## Features
 
-```
-┌─────────────────────────────────────────────────────────┐
-│                    Hexagonal Architecture               │
-│                                                         │
-│  CLI (Typer)  ──►  FastAPI  ──►  Core Services          │
-│                                    │                    │
-│                              ┌─────┴──────┐             │
-│                              ▼            ▼             │
-│                         GitHub Port   K8s Port          │
-│                              │            │             │
-│                         GitHub Adapter  K8s Adapter     │
-│                         (real/mock)    (real/mock)      │
-└─────────────────────────────────────────────────────────┘
-```
-
-**Capas:**
-- `idp/core/domain/` — modelos puros Python, sin frameworks
-- `idp/core/ports/` — interfaces (ABC/Protocol) + in-memory para tests
-- `idp/core/services/` — lógica de negocio: TeamService, ProjectService, ProvisioningService
-- `idp/adapters/` — GitHub (httpx) y Kubernetes (kubernetes_asyncio)
-- `idp/api/` — FastAPI con routers, schemas Pydantic v2
-- `idp/cli/` — Typer CLI con Rich output
-- `operator/` — K8s Operator (kopf) con CRD `Project.idp.company.io`
-- `terraform/` — AKS + PostgreSQL + Redis (módulos reutilizables)
+- **CLI + API**: Typer CLI and FastAPI REST API, both backed by the same core services
+- **Kubernetes Operator**: Manage projects declaratively via a custom CRD
+- **GitOps ready**: ArgoCD Application is registered automatically for each project
+- **Multi-environment**: Per-environment configuration with different resource limits
+- **Pluggable adapters**: GitHub and Kubernetes adapters with real and mock implementations for testing
+- **Terraform infrastructure**: AKS, PostgreSQL, and Redis provisioning with reusable modules
 
 ---
 
-## Quick Start
+## Architecture
 
-```bash
-# 1. Instalar
-pip install -r requirements.txt
-
-# 2. Config mínima (sin GitHub/K8s real usa mock automáticamente)
-export GITHUB_TOKEN=ghp_xxx
-export GITHUB_ORG=myorg
-
-# 3. Arrancar API
-uvicorn idp.api.main:app --reload
-
-# 4. Usar CLI
-idp team create "Backend" --email backend@company.com --github-team backend
-idp project create "Payment Service" --team <team-id> --envs dev,staging,prod
-idp project status <project-id>
-idp project list
 ```
+ Hexagonal (Ports & Adapters)
+
+ CLI (Typer)  -->  FastAPI  -->  Core Services
+                                    |
+                              ------+------
+                              |           |
+                         GitHub Port  K8s Port
+                              |           |
+                         GitHub Adapter  K8s Adapter
+                         (real/mock)    (real/mock)
+```
+
+**Layers:**
+
+| Layer | Path | Responsibility |
+|---|---|---|
+| Domain | `idp/core/domain/` | Pure Python models, no framework dependencies |
+| Ports | `idp/core/ports/` | Interfaces (ABC/Protocol) with in-memory implementations for tests |
+| Services | `idp/core/services/` | Business logic: TeamService, ProjectService, ProvisioningService |
+| Adapters | `idp/adapters/` | GitHub (httpx) and Kubernetes (kubernetes_asyncio) |
+| API | `idp/api/` | FastAPI routers with Pydantic v2 schemas |
+| CLI | `idp/cli/` | Typer CLI with Rich output |
+| Operator | `operator/` | Kopf-based K8s operator with CRD `Project.idp.company.io` |
+| Terraform | `terraform/` | AKS, PostgreSQL, and Redis reusable modules |
 
 ---
 
-## API
+## Usage
+
+### API
 
 ```
-POST   /api/v1/teams                   # Crear equipo
-GET    /api/v1/teams                   # Listar equipos
-POST   /api/v1/projects                # Crear proyecto (provisioning async)
-GET    /api/v1/projects                # Listar proyectos
-GET    /api/v1/projects/{id}           # Detalle
-GET    /api/v1/projects/{id}/status    # Estado provisioning
+POST   /api/v1/teams                   Create a team
+GET    /api/v1/teams                   List teams
+POST   /api/v1/projects                Create a project (async provisioning)
+GET    /api/v1/projects                List projects
+GET    /api/v1/projects/{id}           Project detail
+GET    /api/v1/projects/{id}/status    Provisioning status
 POST   /api/v1/projects/{id}/reprovision
-DELETE /api/v1/projects/{id}           # Deprovision + soft delete
-GET    /api/v1/projects/{id}/audit     # Historial
+DELETE /api/v1/projects/{id}           Deprovision + soft delete
+GET    /api/v1/projects/{id}/audit     Audit history
 GET    /health
 ```
 
-Swagger UI: `http://localhost:8000/api/v1/docs`
+Swagger UI at `http://localhost:8000/api/v1/docs`
 
----
-
-## K8s Operator
+### K8s Operator
 
 ```bash
-# Instalar CRD
 kubectl apply -f operator/crds/project-crd.yaml
 
-# Crear proyecto via CRD (el operator aprovisiona todo)
 kubectl apply -f - <<EOF
 apiVersion: idp.company.io/v1alpha1
 kind: Project
@@ -119,48 +105,70 @@ spec:
 EOF
 ```
 
----
-
-## Deploy con Terraform
+### Terraform
 
 ```bash
 cd terraform/environments/dev
 terraform init && terraform apply
 ```
 
-Aprovisiona: AKS (system + workloads nodepools) + Log Analytics + identidades.
+Provisions AKS (system + workload nodepools), Log Analytics, and managed identities.
 
 ---
 
-## Tests
+## Development
+
+### Prerequisites
+
+- Python 3.11+
+- kubectl + access to a cluster (optional, mock mode works without one)
+- GitHub token with `repo` and `admin:org` scopes (optional, mock mode used otherwise)
+
+### Setup
+
+```bash
+pip install -r requirements.txt
+
+# Minimum configuration (mock mode used if tokens are missing)
+export GITHUB_TOKEN=ghp_xxx
+export GITHUB_ORG=myorg
+
+# Start the API
+uvicorn idp.api.main:app --reload
+
+# Use the CLI
+idp team create "Backend" --email backend@company.com --github-team backend
+idp project create "Payment Service" --team <team-id> --envs dev,staging,prod
+idp project status <project-id>
+idp project list
+```
+
+### Tests
+
+All 30 tests run with zero external dependencies:
 
 ```bash
 python -m unittest tests.test_idp -v
-# 30 tests — 0 dependencias externas
 ```
 
----
+### Environment Variables
 
-## Variables de entorno
-
-| Variable | Descripción | Default |
+| Variable | Description | Default |
 |---|---|---|
-| `GITHUB_TOKEN` | PAT con permisos `repo` + `admin:org` | Mock mode |
-| `GITHUB_ORG` | Organización GitHub | `myorg` |
-| `K8S_IN_CLUSTER` | Usar service account del pod | `false` |
-| `KUBECONFIG` | Path al kubeconfig | `~/.kube/config` |
-| `ARGOCD_SERVER` | URL del servidor ArgoCD | Desactivado |
-| `IDP_API_URL` | URL de la API (para el CLI) | `http://localhost:8000/api/v1` |
+| `GITHUB_TOKEN` | PAT with `repo` + `admin:org` scopes | Mock mode |
+| `GITHUB_ORG` | GitHub organization | `myorg` |
+| `K8S_IN_CLUSTER` | Use pod service account | `false` |
+| `KUBECONFIG` | Path to kubeconfig | `~/.kube/config` |
+| `ARGOCD_SERVER` | ArgoCD server URL | Disabled |
+| `IDP_API_URL` | API URL (for the CLI) | `http://localhost:8000/api/v1` |
+
+### Stack
+
+Python 3.11, FastAPI, SQLAlchemy 2.0, Pydantic v2, Typer, Rich, kopf, kubernetes_asyncio, httpx, Terraform, AKS, ArgoCD.
 
 ---
 
-## Stack
-
-`Python 3.11` · `FastAPI` · `SQLAlchemy 2.0` · `Pydantic v2` · `Typer` · `Rich` · `kopf` · `kubernetes_asyncio` · `httpx` · `Terraform` · `AKS` · `ArgoCD`
-
----
-
-## Autor
+## Author
 
 **Asier Caballero** — Senior DevOps Engineer & Cloud Architect  
-📧 asier.caballero1@gmail.com · 🔗 [linkedin.com/in/asier-caballero](https://linkedin.com/in/asier-caballero)
+asier.caballero1@gmail.com · [linkedin.com/in/asier-caballero](https://linkedin.com/in/asier-caballero)
